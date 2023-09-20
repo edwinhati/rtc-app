@@ -1,0 +1,167 @@
+<html lang='en'>
+
+<head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Chat App</title>
+    <script src='/tailwindcss.js'></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css"
+        integrity="sha512-xh6O/CkQoPOWDdYTDqeRdPCVd1SpvCA9XXcUnZS2FmJNp1coAFzvtCN9BmamE+4aHK8yyUHUSCcJHgXloTyT2A=="
+        crossOrigin="anonymous" referrerPolicy="no-referrer">
+    </link>
+    <script src="https://cdn.socket.io/3.1.3/socket.io.min.js"
+        integrity="sha384-cPwlPLvBTa3sKAgddT6krw0cJat7egBga3DJepJyrLl4Q9/5WLra3rrnMcyTyOnh"
+        crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <div class='relative flex min-h-screen flex-col justify-center overflow-hidden bg-gray-50 py-6 sm:py-12'>
+        <img src='/img/beams.jpg' alt='' class='absolute top-1/2 left-1/2 max-w-none -translate-x-1/2 -translate-y-1/2'
+            width='1308' />
+        <div
+            class='absolute inset-0 bg-[url(/img/grid.svg)] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]'>
+        </div>
+        <div
+            class='relative bg-white px-6 pt-10 pb-8 shadow-xl ring-1 ring-gray-900/5 sm:mx-auto sm:max-w-lg sm:rounded-lg sm:px-10'>
+            <div class='mx-auto max-w-md'>
+                <h1 id='name' class='text-2xl font-semibold text-center text-gray-900'></h1>
+                <div class='divide-y divide-gray-300/50'>
+                    <div class='space-y-6 py-8 text-base leading-7 text-gray-600'>
+                        <p>Online user</p>
+                        <ul id="users" class='space-y-4'>
+                            <li class="flex items-center">
+                                <svg class='h-6 w-6 flex-none fill-sky-100 stroke-sky-500 stroke-2'
+                                    stroke-linecap='round' stroke-linejoin='round'>
+                                    <circle cx='12' cy='12' r='11' />
+                                    <path d='m8 13 2.165 2.165a1 1 0 0 0 1.521-.126L16 9' fill='none' />
+                                </svg>
+                                <p class='ml-4'>
+                                    Edwin
+                                </p>
+                            </li>
+                        </ul>
+                    </div>
+                    <!-- Chat Container -->
+                        <div id="typing-display"></div>
+                    <div class='pt-8 text-base font-semibold leading-7 text-center'>
+                        <div class='flex flex-col space-y-4'>
+                            <!-- Chat Messages Go Here -->
+                            <div id="chat-messages" class="space-y-2 max-h-60 overflow-y-auto">
+                                <!-- Example Message with Sender's Name -->
+                                <div class="flex justify-start">
+                                    <div class="bg-gray-100 p-2 w-full rounded-md text-left">
+                                        <p class="text-gray-500">John Doe:</p>
+                                        <!-- Replace "John Doe" with the actual sender's name -->
+                                        <p>Hi there!</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex items-center">
+                                <button id="microphone" class="text-red-400 focus:outline-none mr-2 w-12">
+                                    <i class="fas fa-microphone-slash text-lg"></i>
+                                    <p class="text-red-400 text-sm">Unmute</p>
+                                </button>
+                                <input type="text" id="chat-input"
+                                    class="flex-grow rounded-sm p-2 border border-gray-300 focus:outline-none focus:ring focus:ring-blue-300"
+                                    placeholder="Type your message...">
+                                <button id="send-button"
+                                    onclick="sendMessage()"
+                                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-sm focus:outline-none focus:ring focus:ring-blue-300">Send</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script>
+    const socket = io({{ URL }});
+    let isMuted = true;
+    let isJoined = false;
+    let username;
+    if (!isJoined) {
+        username = prompt('What is your name?');
+    }
+    document.getElementById('name').innerHTML = `Welcome, ${username}!`;
+    const microphone = document.getElementById('microphone');
+    const handleMicrophone = () => {
+        isMuted = !isMuted;
+        updateMicrophoneUI();
+    }
+
+    function updateMicrophoneUI() {
+    if (isMuted) {
+    microphone.innerHTML = `
+      <i class="fas fa-microphone-slash text-lg"></i>
+      <p class="text-red-400 text-sm">Unmute</p>
+    `;
+    } else {
+    microphone.innerHTML = `
+      <i class='fas fa-microphone text-sky-500 text-lg'></i>
+      <p class='text-sky-500 text-sm'>Mute</p>
+    `;
+
+        }
+    }
+
+    microphone.addEventListener('click', handleMicrophone);
+    updateMicrophoneUI();
+    const join = () => {
+        socket.emit('join', { name: username }, () => {
+            isJoined = true;
+        });
+    }
+    let timeout;
+    const emitTyping = () => {
+        socket.emit('typing', { isTyping: true });
+        timeout = setTimeout(() => {
+            socket.emit('typing', { isTyping: false });
+        }, 1000);
+    }
+    const updateMessages = () => {
+        const chatMessages = document.getElementById('chat-messages');
+        socket.emit('findAllMessage', {}, (data) => {
+            let element = ''
+            data.forEach((message) => {
+                element += `
+        <div class="flex justify-start">
+            <div class="bg-gray-100 p-2 w-full rounded-md text-left">
+                <p class="text-gray-500">${message.name}:</p>
+                <p>${message.content}</p>
+            </div>
+        </div>
+        `;
+
+            });
+            chatMessages.innerHTML = element;
+        });
+    }
+    socket.on('connect', () => {
+        console.log('connected');
+        join();
+        updateMessages();
+    });
+    socket.on('message', (data) => {
+        updateMessages();
+    });
+    socket.on('typing',({name, isTyping}) => {
+        if (data.isTyping) {
+            document.getElementById('typing-display').innerHTML = `is typing...`;
+        } else {
+            document.getElementById('typing-display').innerHTML = '';
+        }
+    });
+    const sendMessage = () => {
+        socket.emit('createMessage', { content: document.getElementById('chat-input').value }, () => {
+            console.log('message sent');
+        });
+        updateMessages();
+    }
+    
+
+</script>
+
+</html>
